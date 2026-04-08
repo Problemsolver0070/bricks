@@ -13,20 +13,23 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_CLERK_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL,
   },
   async headers() {
-    return [
+    // COEP/COOP headers are required by the WebContainer API but block
+    // Clerk's cross-origin auth resources. Scope them to the routes that
+    // actually use WebContainers (/chat and /build).
+    const coopCoepHeaders = [
       {
-        source: "/(.*)",
-        headers: [
-          {
-            key: "Cross-Origin-Embedder-Policy",
-            value: "credentialless",
-          },
-          {
-            key: "Cross-Origin-Opener-Policy",
-            value: "same-origin",
-          },
-        ],
+        key: "Cross-Origin-Embedder-Policy",
+        value: "credentialless",
       },
+      {
+        key: "Cross-Origin-Opener-Policy",
+        value: "same-origin",
+      },
+    ];
+
+    return [
+      { source: "/chat/:path*", headers: coopCoepHeaders },
+      { source: "/build/:path*", headers: coopCoepHeaders },
     ];
   },
   turbopack: {},
