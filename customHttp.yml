@@ -1,0 +1,52 @@
+customHeaders:
+  # Authenticated app routes — never cache in CDN or browser.
+  # Amplify applies these at the CloudFront edge, before the origin is hit
+  # for cached responses. This prevents stale 404s from being served.
+  - pattern: "/chat/*"
+    headers:
+      - key: "Cache-Control"
+        value: "private, no-cache, no-store, max-age=0, s-maxage=0, must-revalidate"
+      - key: "Pragma"
+        value: "no-cache"
+  - pattern: "/chat"
+    headers:
+      - key: "Cache-Control"
+        value: "private, no-cache, no-store, max-age=0, s-maxage=0, must-revalidate"
+      - key: "Pragma"
+        value: "no-cache"
+  - pattern: "/build/*"
+    headers:
+      - key: "Cache-Control"
+        value: "private, no-cache, no-store, max-age=0, s-maxage=0, must-revalidate"
+      - key: "Pragma"
+        value: "no-cache"
+  - pattern: "/build"
+    headers:
+      - key: "Cache-Control"
+        value: "private, no-cache, no-store, max-age=0, s-maxage=0, must-revalidate"
+      - key: "Pragma"
+        value: "no-cache"
+  - pattern: "/settings/*"
+    headers:
+      - key: "Cache-Control"
+        value: "private, no-cache, no-store, max-age=0, s-maxage=0, must-revalidate"
+      - key: "Pragma"
+        value: "no-cache"
+  - pattern: "/settings"
+    headers:
+      - key: "Cache-Control"
+        value: "private, no-cache, no-store, max-age=0, s-maxage=0, must-revalidate"
+      - key: "Pragma"
+        value: "no-cache"
+  - pattern: "/pricing"
+    headers:
+      - key: "Cache-Control"
+        value: "private, no-cache, no-store, max-age=0, s-maxage=0, must-revalidate"
+      - key: "Pragma"
+        value: "no-cache"
+  - pattern: "/api/*"
+    headers:
+      - key: "Cache-Control"
+        value: "private, no-cache, no-store, max-age=0, s-maxage=0, must-revalidate"
+      - key: "Pragma"
+        value: "no-cache"
