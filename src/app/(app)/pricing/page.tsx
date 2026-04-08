@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { getUserByClerkId, getSubscription } from "@/lib/db/queries";
+import { getOrCreateUserByClerkId, getSubscription } from "@/lib/db/queries";
 import { PricingClient } from "./pricing-client";
 
 export const metadata = {
@@ -12,7 +12,7 @@ export default async function PricingPage() {
   const { userId: clerkId } = await auth();
   if (!clerkId) redirect("/sign-in");
 
-  const user = await getUserByClerkId(clerkId);
+  const user = await getOrCreateUserByClerkId(clerkId);
 
   // If user doesn't exist in DB yet (webhook pending), show pricing with no plan
   const plan = user?.plan ?? "trial";

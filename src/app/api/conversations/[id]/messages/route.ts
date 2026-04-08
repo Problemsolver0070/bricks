@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
-import { getUserByClerkId, getMessages } from "@/lib/db/queries";
+import { getOrCreateUserByClerkId, getMessages } from "@/lib/db/queries";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dbUser = await getUserByClerkId(clerkId);
+  const dbUser = await getOrCreateUserByClerkId(clerkId);
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }

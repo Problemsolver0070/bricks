@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getUserByClerkId,
+  getOrCreateUserByClerkId,
   getConversations,
   createConversation,
 } from "@/lib/db/queries";
@@ -14,7 +14,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dbUser = await getUserByClerkId(clerkId);
+  const dbUser = await getOrCreateUserByClerkId(clerkId);
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dbUser = await getUserByClerkId(clerkId);
+  const dbUser = await getOrCreateUserByClerkId(clerkId);
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }

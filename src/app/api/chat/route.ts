@@ -12,7 +12,7 @@ import {
 import { buildContentBlocks, summarizeAttachments } from "@/lib/ai/attachments";
 import type { Attachment } from "@/lib/types/attachment";
 import {
-  getUserByClerkId,
+  getOrCreateUserByClerkId,
   getSubscription,
   createConversation,
   getConversation,
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. DB user
-    const dbUser = await getUserByClerkId(clerkId);
+    const dbUser = await getOrCreateUserByClerkId(clerkId);
     if (!dbUser) {
       return new Response(JSON.stringify({ error: "User not found" }), {
         status: 404,

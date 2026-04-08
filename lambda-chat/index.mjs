@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import AnthropicFoundry from "@anthropic-ai/foundry-sdk";
-import { verifyToken } from "@clerk/backend";
+import { verifyToken, createClerkClient } from "@clerk/backend";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { pgTable, uuid, text, timestamp, jsonb } from "drizzle-orm/pg-core";
@@ -288,6 +288,38 @@ async function getUserByClerkId(clerkId) {
   return user;
 }
 
+async function getOrCreateUserByClerkId(clerkId) {
+  const existing = await getUserByClerkId(clerkId);
+  if (existing) return existing;
+
+  try {
+    const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+    const clerkUser = await clerk.users.getUser(clerkId);
+    const email = clerkUser.emailAddresses?.[0]?.emailAddress;
+    if (!email) return undefined;
+
+    const name =
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+      null;
+
+    const db = getDb();
+    const [user] = await db
+      .insert(users)
+      .values({
+        clerkId,
+        email,
+        name,
+        avatarUrl: clerkUser.imageUrl ?? null,
+        trialExpiresAt: sql`NOW() + INTERVAL '48 hours'`,
+      })
+      .returning();
+    return user;
+  } catch (err) {
+    console.error("Failed to auto-provision user from Clerk:", err);
+    return undefined;
+  }
+}
+
 async function getSubscription(userId) {
   const db = getDb();
   const [subscription] = await db
@@ -455,11 +487,11 @@ export const handler = awslambda.streamifyResponse(
         return;
       }
 
-      // 2. ── DB user lookup ─────────────────────────────────────────────
+      // 2. ── DB user lookup (auto-provision if webhook was missed) ────
       console.log("[Lambda] Looking up DB user for clerk ID:", clerkUserId);
-      const dbUser = await getUserByClerkId(clerkUserId);
+      const dbUser = await getOrCreateUserByClerkId(clerkUserId);
       if (!dbUser) {
-        console.log("[Lambda] User not found in DB");
+        console.log("[Lambda] User not found in DB and auto-provision failed");
         writeErrorAndClose(responseStream, 404, "User not found");
         return;
       }

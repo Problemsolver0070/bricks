@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getUserByClerkId, getSubscription } from "@/lib/db/queries";
+import { getOrCreateUserByClerkId, getSubscription } from "@/lib/db/queries";
 import {
   CreditCard,
   Crown,
@@ -20,7 +20,7 @@ export default async function BillingPage() {
   const { userId: clerkId } = await auth();
   if (!clerkId) redirect("/sign-in");
 
-  const dbUser = await getUserByClerkId(clerkId);
+  const dbUser = await getOrCreateUserByClerkId(clerkId);
   const subscription = dbUser ? await getSubscription(dbUser.id) : null;
 
   const plan = dbUser?.plan ?? "trial";
