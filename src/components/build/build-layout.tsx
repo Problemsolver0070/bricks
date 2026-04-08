@@ -10,6 +10,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Code, Eye, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { AttachmentButton, uploadFile } from "@/components/chat/attachment-button";
+import { AttachmentPreview } from "@/components/chat/attachment-preview";
+import { MessageAttachments } from "@/components/chat/message-attachments";
+import type { PendingAttachment, Attachment } from "@/lib/types/attachment";
+import { detectCategory } from "@/lib/types/attachment";
 
 const CHAT_API_URL =
   process.env.NEXT_PUBLIC_CHAT_API_URL || "/api/chat";
@@ -23,6 +28,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: Attachment[] | null;
 }
 
 interface BuildLayoutProps {
@@ -47,6 +53,7 @@ export function BuildLayout({
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const conversationIdRef = useRef<string | undefined>(_conversationId);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
 
   // Load initial files into store
   const hasLoadedRef = useRef(false);
@@ -54,6 +61,40 @@ export function BuildLayout({
     hasLoadedRef.current = true;
     setFiles(initialFiles);
   }
+
+  const handleFilesSelected = useCallback(
+    async (newPending: PendingAttachment[]) => {
+      setPendingAttachments((prev) => [...prev, ...newPending]);
+      const token = await getToken();
+      for (const pending of newPending) {
+        try {
+          const attachment = await uploadFile(pending.file, token);
+          setPendingAttachments((prev) =>
+            prev.map((p) =>
+              p.id === pending.id
+                ? { ...p, status: "ready" as const, attachment }
+                : p
+            )
+          );
+        } catch {
+          setPendingAttachments((prev) =>
+            prev.map((p) =>
+              p.id === pending.id ? { ...p, status: "error" as const } : p
+            )
+          );
+        }
+      }
+    },
+    [getToken]
+  );
+
+  const removeAttachment = useCallback((id: string) => {
+    setPendingAttachments((prev) => {
+      const att = prev.find((p) => p.id === id);
+      if (att?.previewUrl) URL.revokeObjectURL(att.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  }, []);
 
   const handleFilesGenerated = useCallback(
     async (newFiles: Record<string, string>) => {
@@ -82,16 +123,21 @@ export function BuildLayout({
 
   const handleSend = useCallback(async () => {
     const trimmed = input.trim();
-    if (!trimmed || isStreaming) return;
+    const readyAttachments: Attachment[] = pendingAttachments
+      .filter((p) => p.status === "ready" && p.attachment)
+      .map((p) => p.attachment!);
+    if ((!trimmed && readyAttachments.length === 0) || isStreaming) return;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: trimmed,
+      attachments: readyAttachments.length > 0 ? readyAttachments : undefined,
     };
 
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setPendingAttachments([]);
     setIsStreaming(true);
 
     try {
@@ -106,6 +152,7 @@ export function BuildLayout({
           message: trimmed,
           conversationId: conversationIdRef.current,
           mode: "build",
+          attachments: readyAttachments.length > 0 ? readyAttachments : undefined,
         }),
       });
 
@@ -187,7 +234,7 @@ export function BuildLayout({
       setIsStreaming(false);
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [input, isStreaming, messages, handleFilesGenerated, getToken]);
+  }, [input, isStreaming, messages, handleFilesGenerated, getToken, pendingAttachments, handleFilesSelected]);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -232,6 +279,9 @@ export function BuildLayout({
                       : "bg-muted text-foreground"
                   )}
                 >
+                  {msg.role === "user" && msg.attachments && (
+                    <MessageAttachments attachments={msg.attachments} />
+                  )}
                   {displayContent}
                 </div>
               </div>
@@ -253,8 +303,38 @@ export function BuildLayout({
         </div>
 
         {/* Input */}
-        <div className="border-t border-border/50 p-3">
+        <div
+          className="border-t border-border/50 p-3"
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer.files.length > 0) {
+              const files = Array.from(e.dataTransfer.files);
+              const pending: PendingAttachment[] = files.map((file) => ({
+                id: crypto.randomUUID(),
+                file,
+                filename: file.name,
+                mimeType: file.type || "application/octet-stream",
+                size: file.size,
+                category: detectCategory(file.type, file.name),
+                status: "uploading" as const,
+                progress: 0,
+                previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+              }));
+              handleFilesSelected(pending);
+            }
+          }}
+        >
+          <AttachmentPreview
+            attachments={pendingAttachments}
+            onRemove={removeAttachment}
+          />
           <div className="flex items-end gap-2">
+            <AttachmentButton
+              onFilesSelected={handleFilesSelected}
+              disabled={isStreaming}
+            />
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -272,7 +352,7 @@ export function BuildLayout({
             <Button
               size="icon"
               onClick={handleSend}
-              disabled={!input.trim() || isStreaming}
+              disabled={(!input.trim() && pendingAttachments.length === 0) || isStreaming || pendingAttachments.some((p) => p.status === "uploading")}
             >
               <Send className="h-4 w-4" />
             </Button>
