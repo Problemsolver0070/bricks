@@ -86,7 +86,8 @@ export async function POST(req: NextRequest) {
     };
 
     const hasAttachments = incomingAttachments && incomingAttachments.length > 0;
-    if ((!message || typeof message !== "string" || message.trim().length === 0) && !hasAttachments) {
+    const trimmedMessage = (message && typeof message === "string") ? message.trim() : "";
+    if (trimmedMessage.length === 0 && !hasAttachments) {
       return new Response(JSON.stringify({ error: "Message is required" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
     await createMessage(
       conversationId,
       "user",
-      message.trim(),
+      trimmedMessage,
       incomingAttachments?.length ? incomingAttachments : null
     );
 
@@ -131,7 +132,7 @@ export async function POST(req: NextRequest) {
     // 8. Build prompt
     const { system: systemPrompt, messages: msgs } = buildChatMessages(
       history,
-      message.trim(),
+      trimmedMessage,
       mode,
       { userName: dbUser.name ?? undefined }
     );
@@ -141,7 +142,7 @@ export async function POST(req: NextRequest) {
       const lastMsg = msgs[msgs.length - 1];
       if (lastMsg.role === "user") {
         lastMsg.content = await buildContentBlocks(
-          message.trim(),
+          trimmedMessage,
           incomingAttachments
         );
       }
@@ -200,7 +201,7 @@ export async function POST(req: NextRequest) {
 
           // Auto-title on first message
           if (isFirstMessage) {
-            const trimmed = message.trim();
+            const trimmed = trimmedMessage;
             const title =
               trimmed.length > 60 ? trimmed.slice(0, 60) + "..." : trimmed;
             await updateConversationTitle(
