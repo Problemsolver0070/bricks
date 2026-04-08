@@ -10,6 +10,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { pgTable, uuid, text, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { eq, and, desc, sql } from "drizzle-orm";
+import { BlobServiceClient } from "@azure/storage-blob";
 
 // ─── Schema (mirrored from src/lib/db/schema.ts) ───────────────────────────
 
@@ -39,6 +40,7 @@ const messages = pgTable("messages", {
   conversationId: uuid("conversation_id").notNull(),
   role: text("role").notNull(),
   content: text("content").notNull(),
+  attachments: jsonb("attachments"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -75,6 +77,84 @@ function getAIClient() {
     });
   }
   return _aiClient;
+}
+
+let _blobServiceClient = null;
+
+function getBlobServiceClient() {
+  if (!_blobServiceClient) {
+    _blobServiceClient = BlobServiceClient.fromConnectionString(
+      process.env.AZURE_STORAGE_CONNECTION_STRING
+    );
+  }
+  return _blobServiceClient;
+}
+
+async function downloadBlob(blobKey) {
+  const client = getBlobServiceClient();
+  const container = client.getContainerClient(
+    process.env.AZURE_STORAGE_CONTAINER || "uploads"
+  );
+  const blockBlob = container.getBlockBlobClient(blobKey);
+  const response = await blockBlob.download(0);
+  const chunks = [];
+  for await (const chunk of response.readableStreamBody) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+async function buildContentBlocks(text, attachments) {
+  if (!attachments || attachments.length === 0) return text;
+
+  const blocks = [];
+
+  for (const att of attachments) {
+    const data = await downloadBlob(att.blobKey);
+
+    if (att.category === "image") {
+      blocks.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: att.mimeType,
+          data: data.toString("base64"),
+        },
+      });
+    } else if (att.category === "pdf") {
+      blocks.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: data.toString("base64"),
+        },
+      });
+    } else {
+      const fileContent = data.toString("utf-8");
+      const ext = att.filename.split(".").pop() || "";
+      blocks.push({
+        type: "text",
+        text: `File: ${att.filename}\n\`\`\`${ext}\n${fileContent}\n\`\`\``,
+      });
+    }
+  }
+
+  if (text.trim()) {
+    blocks.push({ type: "text", text });
+  }
+
+  return blocks;
+}
+
+function summarizeAttachments(text, attachments) {
+  if (!attachments || attachments.length === 0) return text;
+  const summaries = attachments.map((att) => {
+    if (att.category === "image") return `[Attached image: ${att.filename}]`;
+    if (att.category === "pdf") return `[Attached PDF: ${att.filename}]`;
+    return `[Attached file: ${att.filename}]`;
+  });
+  return [...summaries, text].filter(Boolean).join("\n");
 }
 
 const MODEL = "claude-opus-4-6";
@@ -246,11 +326,16 @@ async function getMessages(conversationId, userId) {
     .orderBy(messages.createdAt);
 }
 
-async function createMessage(conversationId, role, content) {
+async function createMessage(conversationId, role, content, attachments = null) {
   const db = getDb();
   const [message] = await db
     .insert(messages)
-    .values({ conversationId, role, content })
+    .values({
+      conversationId,
+      role,
+      content,
+      ...(attachments ? { attachments } : {}),
+    })
     .returning();
 
   // Touch the conversation's updatedAt
@@ -400,7 +485,7 @@ export const handler = awslambda.streamifyResponse(
         return;
       }
 
-      const { message, conversationId: incomingConversationId, mode = "chat" } = body;
+      const { message, conversationId: incomingConversationId, mode = "chat", attachments: incomingAttachments } = body;
 
       if (!message || typeof message !== "string" || message.trim().length === 0) {
         writeErrorAndClose(responseStream, 400, "Message is required");
@@ -424,14 +509,14 @@ export const handler = awslambda.streamifyResponse(
       }
 
       // 6. ── Save user message ──────────────────────────────────────────
-      await createMessage(conversationId, "user", message.trim());
+      await createMessage(conversationId, "user", message.trim(), incomingAttachments?.length ? incomingAttachments : null);
 
       // 7. ── Load last 50 messages as history ───────────────────────────
       const allMessages = await getMessages(conversationId, dbUser.id);
       const recentMessages = allMessages.slice(-50);
       const history = recentMessages.slice(0, -1).map((m) => ({
         role: m.role,
-        content: m.content,
+        content: summarizeAttachments(m.content, m.attachments),
       }));
 
       // 8. ── Build prompt ───────────────────────────────────────────────
@@ -441,6 +526,14 @@ export const handler = awslambda.streamifyResponse(
         mode,
         { userName: dbUser.name ?? undefined }
       );
+
+      // Build content blocks for current message's attachments
+      if (incomingAttachments?.length) {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg.role === "user") {
+          lastMsg.content = await buildContentBlocks(message.trim(), incomingAttachments);
+        }
+      }
 
       console.log("[Lambda] Starting AI stream, mode:", mode, "conversation:", conversationId);
 

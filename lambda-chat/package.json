@@ -6,8 +6,9 @@
   "main": "index.mjs",
   "dependencies": {
     "@anthropic-ai/foundry-sdk": "^0.2.3",
+    "@azure/storage-blob": "^12.31.0",
     "@clerk/backend": "^1.27.0",
-    "postgres": "^3.4.5",
-    "drizzle-orm": "^0.41.0"
+    "drizzle-orm": "^0.41.0",
+    "postgres": "^3.4.5"
   }
 }
