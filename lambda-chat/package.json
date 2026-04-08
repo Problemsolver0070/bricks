@@ -1,0 +1,13 @@
+{
+  "name": "bricks-chat-lambda",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Standalone Lambda for Bricks chat streaming (bypasses Amplify CloudFront 30s timeout)",
+  "main": "index.mjs",
+  "dependencies": {
+    "@anthropic-ai/foundry-sdk": "^0.2.3",
+    "@clerk/backend": "^1.27.0",
+    "postgres": "^3.4.5",
+    "drizzle-orm": "^0.41.0"
+  }
+}

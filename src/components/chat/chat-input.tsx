@@ -2,9 +2,13 @@
 
 import { useRef, useState, useCallback, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chat-store";
+
+const CHAT_API_URL =
+  process.env.NEXT_PUBLIC_CHAT_API_URL || "/api/chat";
 
 interface ChatInputProps {
   conversationId?: string;
@@ -18,6 +22,7 @@ export function ChatInput({
   onFilesGenerated,
 }: ChatInputProps) {
   const router = useRouter();
+  const { getToken } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
 
@@ -54,9 +59,13 @@ export function ChatInput({
     let currentConversationId = conversationId;
 
     try {
-      const res = await fetch("/api/chat", {
+      const token = await getToken();
+      const res = await fetch(CHAT_API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           message: trimmed,
           conversationId,
@@ -198,6 +207,7 @@ export function ChatInput({
     finalizeStream,
     onFilesGenerated,
     router,
+    getToken,
   ]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useBuildStore } from "@/stores/build-store";
 import { CodeEditor } from "./code-editor";
 import { FileTree } from "./file-tree";
@@ -9,6 +10,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Code, Eye, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const CHAT_API_URL =
+  process.env.NEXT_PUBLIC_CHAT_API_URL || "/api/chat";
 
 // ─── Minimal Chat UI (inline) ────────────────────────────────────────────────
 // The chat components are being built by another agent and may not exist yet.
@@ -32,6 +36,7 @@ export function BuildLayout({
   initialFiles,
   initialMessages,
 }: BuildLayoutProps) {
+  const { getToken } = useAuth();
   const setFiles = useBuildStore((s) => s.setFiles);
   const files = useBuildStore((s) => s.files);
 
@@ -89,9 +94,13 @@ export function BuildLayout({
     setIsStreaming(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const token = await getToken();
+      const res = await fetch(CHAT_API_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           message: trimmed,
           conversationId: conversationIdRef.current,
@@ -173,7 +182,7 @@ export function BuildLayout({
       setIsStreaming(false);
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [input, isStreaming, messages, handleFilesGenerated]);
+  }, [input, isStreaming, messages, handleFilesGenerated, getToken]);
 
   return (
     <div className="flex h-full overflow-hidden">
