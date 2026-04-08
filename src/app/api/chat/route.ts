@@ -143,7 +143,7 @@ export async function POST(req: NextRequest) {
         try {
           const response = getClient().messages.stream({
             model: MODEL,
-            max_tokens: mode === "build" ? 32000 : 8192,
+            max_tokens: mode === "build" ? 100000 : 16000,
             system: systemPrompt,
             messages: msgs,
           });
