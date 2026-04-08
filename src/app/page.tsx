@@ -1,65 +1,116 @@
-import Image from "next/image";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { MessageSquare, Hammer, Rocket } from "lucide-react";
 
-export default function Home() {
+export default async function LandingPage() {
+  const { userId } = await auth();
+  if (userId) redirect("/chat");
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex min-h-screen flex-col bg-background">
+      {/* ─── Header ──────────────────────────────────────────────────────── */}
+      <header className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+        <span className="text-xl font-bold tracking-tight text-foreground">
+          Bricks
+        </span>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/sign-in"
+            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Sign in
+          </Link>
+          <Link
+            href="/sign-up"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Get started
+          </Link>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      </header>
+
+      {/* ─── Hero ────────────────────────────────────────────────────────── */}
+      <main className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary mb-8">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+          </span>
+          48 hours free — no credit card required
+        </div>
+
+        <h1 className="max-w-3xl text-5xl font-bold tracking-tight text-foreground sm:text-6xl lg:text-7xl">
+          Build anything with{" "}
+          <span className="text-primary">The Fixer</span>
+        </h1>
+
+        <p className="mt-6 max-w-xl text-lg text-muted-foreground leading-relaxed">
+          Describe what you want. The Fixer writes the code, previews it live,
+          and ships it — all from one conversation.
+        </p>
+
+        <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+          <Link
+            href="/sign-up"
+            className="rounded-lg bg-primary px-8 py-3 text-base font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            Start Building
+          </Link>
+          <Link
+            href="/pricing"
+            className="rounded-lg border border-border px-8 py-3 text-base font-semibold text-foreground hover:bg-muted transition-colors"
           >
-            Documentation
-          </a>
+            View Pricing
+          </Link>
+        </div>
+
+        {/* ─── Feature Cards ───────────────────────────────────────────── */}
+        <div className="mt-24 grid w-full max-w-4xl gap-6 sm:grid-cols-3">
+          <FeatureCard
+            icon={<MessageSquare className="h-6 w-6 text-primary" />}
+            title="Chat"
+            description="Brainstorm, debug, and plan with The Fixer in natural conversation."
+          />
+          <FeatureCard
+            icon={<Hammer className="h-6 w-6 text-primary" />}
+            title="Build"
+            description="Generate full web apps with live preview. Edit with words, not code."
+          />
+          <FeatureCard
+            icon={<Rocket className="h-6 w-6 text-primary" />}
+            title="Ship"
+            description="One-click deploy. Go from idea to live URL in minutes."
+          />
         </div>
       </main>
+
+      {/* ─── Footer ──────────────────────────────────────────────────────── */}
+      <footer className="border-t border-border/50 px-6 py-8 text-center text-sm text-muted-foreground">
+        <p>&copy; {new Date().getFullYear()} Bricks. All rights reserved.</p>
+      </footer>
+    </div>
+  );
+}
+
+function FeatureCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center rounded-xl border border-border/50 bg-card p-8 text-center transition-colors hover:border-primary/30">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+        {icon}
+      </div>
+      <h3 className="mb-2 text-lg font-semibold text-foreground">{title}</h3>
+      <p className="text-sm text-muted-foreground leading-relaxed">
+        {description}
+      </p>
     </div>
   );
 }
