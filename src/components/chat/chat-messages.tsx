@@ -43,6 +43,7 @@ export function ChatMessages() {
             key={msg.id}
             role={msg.role}
             content={msg.content}
+            attachments={msg.attachments}
           />
         ))}
 
