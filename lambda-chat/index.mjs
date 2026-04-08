@@ -490,7 +490,8 @@ export const handler = awslambda.streamifyResponse(
       const { message, conversationId: incomingConversationId, mode = "chat", attachments: incomingAttachments } = body;
 
       const hasAttachments = incomingAttachments && incomingAttachments.length > 0;
-      if ((!message || typeof message !== "string" || message.trim().length === 0) && !hasAttachments) {
+      const trimmedMessage = (message && typeof message === "string") ? message.trim() : "";
+      if (trimmedMessage.length === 0 && !hasAttachments) {
         writeErrorAndClose(responseStream, 400, "Message is required");
         return;
       }
@@ -512,7 +513,7 @@ export const handler = awslambda.streamifyResponse(
       }
 
       // 6. ── Save user message ──────────────────────────────────────────
-      await createMessage(conversationId, "user", message.trim(), incomingAttachments?.length ? incomingAttachments : null);
+      await createMessage(conversationId, "user", trimmedMessage, incomingAttachments?.length ? incomingAttachments : null);
 
       // 7. ── Load last 50 messages as history ───────────────────────────
       const allMessages = await getMessages(conversationId, dbUser.id);
@@ -525,7 +526,7 @@ export const handler = awslambda.streamifyResponse(
       // 8. ── Build prompt ───────────────────────────────────────────────
       const { system: systemPrompt, messages: msgs } = buildChatMessages(
         history,
-        message.trim(),
+        trimmedMessage,
         mode,
         { userName: dbUser.name ?? undefined }
       );
@@ -534,7 +535,7 @@ export const handler = awslambda.streamifyResponse(
       if (incomingAttachments?.length) {
         const lastMsg = msgs[msgs.length - 1];
         if (lastMsg.role === "user") {
-          lastMsg.content = await buildContentBlocks(message.trim(), incomingAttachments);
+          lastMsg.content = await buildContentBlocks(trimmedMessage, incomingAttachments);
         }
       }
 
@@ -593,7 +594,7 @@ export const handler = awslambda.streamifyResponse(
 
         // Auto-title on first message
         if (isFirstMessage) {
-          const trimmed = message.trim();
+          const trimmed = trimmedMessage;
           const title =
             trimmed.length > 60 ? trimmed.slice(0, 60) + "..." : trimmed;
           await updateConversationTitle(conversationId, dbUser.id, title);
