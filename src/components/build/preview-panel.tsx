@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useBuildStore } from "@/stores/build-store";
 import { Loader2, RefreshCw, Hammer } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,10 +40,6 @@ async function getContainer(): Promise<WebContainer> {
 
 // ─── File Conversion ─────────────────────────────────────────────────────────
 
-/**
- * Converts a flat Record<string, string> (e.g. { "src/App.tsx": "..." })
- * into the nested mount tree format WebContainers expects.
- */
 function filesToMountTree(files: Record<string, string>): MountTree {
   const tree: MountTree = {};
 
@@ -69,6 +65,49 @@ function filesToMountTree(files: Record<string, string>): MountTree {
   return tree;
 }
 
+// ─── Static Preview ─────────────────────────────────────────────────────────
+
+/**
+ * Detects if the project is a simple static site (HTML/CSS/JS, no package.json).
+ */
+function isStaticProject(files: Record<string, string>): boolean {
+  const paths = Object.keys(files);
+  if (paths.includes("package.json")) return false;
+  return paths.some(
+    (p) => p === "index.html" || p.endsWith("/index.html")
+  );
+}
+
+/**
+ * Builds a self-contained HTML blob that inlines CSS and JS from the file map.
+ * Rewrites <link href="style.css"> and <script src="app.js"> to inline content.
+ */
+function buildStaticPreview(files: Record<string, string>): string {
+  let html = files["index.html"] || "";
+
+  // Inline CSS: <link rel="stylesheet" href="style.css"> → <style>...</style>
+  html = html.replace(
+    /<link\s+[^>]*href=["']([^"']+\.css)["'][^>]*\/?>/gi,
+    (_match, href: string) => {
+      const css = files[href];
+      if (css) return `<style>\n${css}\n</style>`;
+      return _match;
+    }
+  );
+
+  // Inline JS: <script src="app.js"></script> → <script>...</script>
+  html = html.replace(
+    /<script\s+[^>]*src=["']([^"']+\.js)["'][^>]*>\s*<\/script>/gi,
+    (_match, src: string) => {
+      const js = files[src];
+      if (js) return `<script>\n${js}\n</script>`;
+      return _match;
+    }
+  );
+
+  return html;
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function PreviewPanel() {
@@ -85,6 +124,24 @@ export function PreviewPanel() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const hasRunRef = useRef(false);
   const isRunningRef = useRef(false);
+  const blobUrlRef = useRef<string | null>(null);
+
+  // Static preview state
+  const [staticHtml, setStaticHtml] = useState<string | null>(null);
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+    };
+  }, []);
+
+  const runStaticPreview = useCallback(() => {
+    const currentFiles = useBuildStore.getState().files;
+    const html = buildStaticPreview(currentFiles);
+    setStaticHtml(html);
+    setRunning(true);
+  }, [setRunning]);
 
   const runProject = useCallback(async () => {
     if (isRunningRef.current) return;
@@ -96,6 +153,14 @@ export function PreviewPanel() {
       return;
     }
 
+    // Static HTML project — no WebContainer needed
+    if (isStaticProject(currentFiles)) {
+      runStaticPreview();
+      isRunningRef.current = false;
+      return;
+    }
+
+    // npm-based project — use WebContainer
     try {
       setBooting(true);
       setPreviewUrl(null);
@@ -115,7 +180,7 @@ export function PreviewPanel() {
 
       installProcess.output.pipeTo(
         new WritableStream({
-          write(data) {
+          write(data: string) {
             appendTerminalOutput(data);
           },
         })
@@ -141,7 +206,7 @@ export function PreviewPanel() {
 
       devProcess.output.pipeTo(
         new WritableStream({
-          write(data) {
+          write(data: string) {
             appendTerminalOutput(data);
           },
         })
@@ -166,6 +231,7 @@ export function PreviewPanel() {
     setRunning,
     appendTerminalOutput,
     clearTerminalOutput,
+    runStaticPreview,
   ]);
 
   // Auto-run on first file mount
@@ -176,14 +242,24 @@ export function PreviewPanel() {
     }
   }, [files, runProject]);
 
+  // Re-render static preview when files change
+  useEffect(() => {
+    if (staticHtml !== null && Object.keys(files).length > 0 && isStaticProject(files)) {
+      setStaticHtml(buildStaticPreview(files));
+    }
+  }, [files, staticHtml]);
+
   const handleRefresh = () => {
-    if (iframeRef.current && previewUrl) {
+    const currentFiles = useBuildStore.getState().files;
+    if (staticHtml !== null && isStaticProject(currentFiles)) {
+      setStaticHtml(buildStaticPreview(currentFiles));
+    } else if (iframeRef.current && previewUrl) {
       iframeRef.current.src = previewUrl;
     }
   };
 
   const hasFiles = Object.keys(files).length > 0;
-  const isLoading = isBooting || (isRunning && !previewUrl);
+  const isLoading = isBooting || (isRunning && !previewUrl && !staticHtml);
 
   // ─── Empty State ─────────────────────────────────────────────────────────
   if (!hasFiles && !isLoading) {
@@ -212,7 +288,28 @@ export function PreviewPanel() {
     );
   }
 
-  // ─── Preview ─────────────────────────────────────────────────────────────
+  // ─── Static HTML Preview ─────────────────────────────────────────────────
+  if (staticHtml !== null) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex h-10 items-center justify-between border-b border-border/50 bg-muted/30 px-3">
+          <span className="text-xs text-muted-foreground">Preview — Static</span>
+          <Button variant="ghost" size="icon-xs" onClick={handleRefresh}>
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+        <iframe
+          ref={iframeRef}
+          srcDoc={staticHtml}
+          title="Live Preview"
+          className="flex-1 border-0 bg-white"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        />
+      </div>
+    );
+  }
+
+  // ─── WebContainer Preview ────────────────────────────────────────────────
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-10 items-center justify-between border-b border-border/50 bg-muted/30 px-3">
