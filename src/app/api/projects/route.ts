@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getUserByClerkId,
   getProjects,
+  getProjectByConversationId,
   createProject,
 } from "@/lib/db/queries";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
@@ -16,6 +17,16 @@ export async function GET() {
     const user = await getUserByClerkId(clerkId);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // If conversationId is provided, return the linked project
+    const conversationId = req.nextUrl.searchParams.get("conversationId");
+    if (conversationId) {
+      const project = await getProjectByConversationId(conversationId, user.id);
+      if (!project) {
+        return NextResponse.json(null);
+      }
+      return NextResponse.json(project);
     }
 
     const projects = await getProjects(user.id);
