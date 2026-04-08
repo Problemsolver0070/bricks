@@ -1,3 +1,5 @@
+export const maxDuration = 120;
+
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
 import { getClient, MODEL } from "@/lib/ai/client";
