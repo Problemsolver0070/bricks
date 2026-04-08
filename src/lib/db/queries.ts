@@ -12,6 +12,7 @@ import {
   type Project,
   type Subscription,
 } from "./schema";
+import type { Attachment } from "@/lib/types/attachment";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
@@ -134,11 +135,17 @@ export async function getMessages(
 export async function createMessage(
   conversationId: string,
   role: string,
-  content: string
+  content: string,
+  attachments?: Attachment[] | null
 ): Promise<Message> {
   const [message] = await db
     .insert(messages)
-    .values({ conversationId, role, content })
+    .values({
+      conversationId,
+      role,
+      content,
+      ...(attachments ? { attachments } : {}),
+    })
     .returning();
 
   // Touch the conversation's updatedAt

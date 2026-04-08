@@ -8,6 +8,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { Attachment } from "@/lib/types/attachment";
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 export const users = pgTable("users", {
@@ -62,6 +63,7 @@ export const messages = pgTable(
       .references(() => conversations.id, { onDelete: "cascade" }),
     role: text("role").notNull(),
     content: text("content").notNull(),
+    attachments: jsonb("attachments").$type<Attachment[] | null>().default(null),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
