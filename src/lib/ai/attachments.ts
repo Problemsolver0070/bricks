@@ -1,15 +1,17 @@
 import type { Attachment } from "@/lib/types/attachment";
 import { downloadBlob } from "@/lib/storage/azure-blob";
 
+type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
 export type ContentBlock =
   | { type: "text"; text: string }
   | {
       type: "image";
-      source: { type: "base64"; media_type: string; data: string };
+      source: { type: "base64"; media_type: ImageMediaType; data: string };
     }
   | {
       type: "document";
-      source: { type: "base64"; media_type: string; data: string };
+      source: { type: "base64"; media_type: "application/pdf"; data: string };
     };
 
 export async function buildContentBlocks(
@@ -28,7 +30,7 @@ export async function buildContentBlocks(
         type: "image",
         source: {
           type: "base64",
-          media_type: att.mimeType,
+          media_type: att.mimeType as ImageMediaType,
           data: data.toString("base64"),
         },
       });
