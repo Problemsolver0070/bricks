@@ -41,6 +41,7 @@ export function BuildLayout({
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const conversationIdRef = useRef<string | undefined>(_conversationId);
 
   // Load initial files into store
   const hasLoadedRef = useRef(false);
@@ -92,10 +93,8 @@ export function BuildLayout({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
+          message: trimmed,
+          conversationId: conversationIdRef.current,
           mode: "build",
         }),
       });
@@ -107,6 +106,7 @@ export function BuildLayout({
 
       const decoder = new TextDecoder();
       let fullContent = "";
+      let sseBuffer = "";
 
       const assistantMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -120,16 +120,32 @@ export function BuildLayout({
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        fullContent += chunk;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
 
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMessage.id
-              ? { ...m, content: fullContent }
-              : m
-          )
-        );
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === "conversation_id") {
+              conversationIdRef.current = event.id;
+            } else if (event.type === "text") {
+              fullContent += event.content;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMessage.id
+                    ? { ...m, content: fullContent }
+                    : m
+                )
+              );
+            } else if (event.type === "error") {
+              throw new Error(event.message);
+            }
+          } catch {
+            // skip malformed SSE lines
+          }
+        }
       }
 
       // Try to extract files from the response
@@ -270,7 +286,25 @@ function extractFilesFromResponse(
 ): Record<string, string> | null {
   const files: Record<string, string> = {};
 
-  // Try JSON parse first (if the AI returns a JSON files object)
+  // Try <bricks-files> format first (the AI's primary output format)
+  try {
+    const bricksMatch = content.match(/<bricks-files>\s*([\s\S]*?)\s*<\/bricks-files>/);
+    if (bricksMatch) {
+      const parsed = JSON.parse(bricksMatch[1]);
+      if (Array.isArray(parsed)) {
+        for (const f of parsed) {
+          if (f.path && f.content) {
+            files[f.path] = f.content;
+          }
+        }
+        if (Object.keys(files).length > 0) return files;
+      }
+    }
+  } catch {
+    // Not valid bricks-files, try other formats
+  }
+
+  // Try JSON parse (if the AI returns a JSON files object)
   try {
     const jsonMatch = content.match(/```json\s*\n([\s\S]*?)\n```/);
     if (jsonMatch) {
