@@ -5,92 +5,84 @@ import { useBuildStore } from "@/stores/build-store";
 import { BuildLayout } from "@/components/build/build-layout";
 import { Loader2 } from "lucide-react";
 
-interface ProjectData {
-  id: string;
-  name: string;
-  conversationId: string | null;
-  files: Record<string, string>;
-}
-
 interface MessageData {
   id: string;
   role: "user" | "assistant";
   content: string;
 }
 
-export default function BuildProjectPage({
+export default function BuildConversationPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = use(params);
+  const { id: conversationId } = use(params);
   const reset = useBuildStore((s) => s.reset);
 
-  const [project, setProject] = useState<ProjectData | null>(null);
   const [messages, setMessages] = useState<MessageData[]>([]);
+  const [files, setFiles] = useState<Record<string, string> | undefined>();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     reset();
 
-    async function loadProject() {
+    async function load() {
       try {
         setIsLoading(true);
 
-        // Fetch project
-        const projectRes = await fetch(`/api/projects/${id}`);
-        if (!projectRes.ok) {
-          throw new Error("Failed to load project");
+        // Load conversation messages
+        const messagesRes = await fetch(
+          `/api/conversations/${conversationId}/messages`
+        );
+        if (!messagesRes.ok) {
+          throw new Error("Failed to load conversation");
         }
-        const projectData: ProjectData = await projectRes.json();
-        setProject(projectData);
+        const messagesData: MessageData[] = await messagesRes.json();
+        setMessages(messagesData);
 
-        // Fetch messages if there's a conversation
-        if (projectData.conversationId) {
-          try {
-            const messagesRes = await fetch(
-              `/api/conversations/${projectData.conversationId}/messages`
-            );
-            if (messagesRes.ok) {
-              const messagesData: MessageData[] = await messagesRes.json();
-              setMessages(messagesData);
+        // Try to load linked project files (optional — may not exist yet)
+        try {
+          const projectRes = await fetch(
+            `/api/projects?conversationId=${conversationId}`
+          );
+          if (projectRes.ok) {
+            const projectData = await projectRes.json();
+            if (projectData?.files && Object.keys(projectData.files).length > 0) {
+              setFiles(projectData.files as Record<string, string>);
             }
-          } catch {
-            // Messages are optional — don't fail the whole page
-            console.warn("Could not load conversation messages");
           }
+        } catch {
+          // No project linked yet — that's fine
         }
       } catch (err) {
         const msg =
-          err instanceof Error ? err.message : "Failed to load project";
+          err instanceof Error ? err.message : "Failed to load conversation";
         setError(msg);
       } finally {
         setIsLoading(false);
       }
     }
 
-    loadProject();
-  }, [id, reset]);
+    load();
+  }, [conversationId, reset]);
 
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <p className="text-sm">Loading project...</p>
+          <p className="text-sm">Loading build session...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !project) {
+  if (error) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
-          <p className="text-sm text-destructive">
-            {error ?? "Project not found"}
-          </p>
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       </div>
     );
@@ -98,8 +90,8 @@ export default function BuildProjectPage({
 
   return (
     <BuildLayout
-      conversationId={project.conversationId ?? undefined}
-      initialFiles={project.files}
+      conversationId={conversationId}
+      initialFiles={files}
       initialMessages={messages}
     />
   );

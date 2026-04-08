@@ -171,6 +171,22 @@ export async function getProject(
   return project;
 }
 
+export async function getProjectByConversationId(
+  conversationId: string,
+  userId: string
+): Promise<Project | undefined> {
+  const [project] = await db
+    .select()
+    .from(projects)
+    .where(
+      and(
+        eq(projects.conversationId, conversationId),
+        eq(projects.userId, userId)
+      )
+    );
+  return project;
+}
+
 export async function createProject(
   userId: string,
   name: string,
