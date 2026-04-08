@@ -120,7 +120,8 @@ export async function POST(req: NextRequest) {
     const { system: systemPrompt, messages: msgs } = buildChatMessages(
       history,
       message.trim(),
-      mode
+      mode,
+      { userName: dbUser.name ?? undefined }
     );
 
     // 9. Stream response via SSE

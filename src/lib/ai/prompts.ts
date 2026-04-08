@@ -66,13 +66,20 @@ export function buildChatMessages(
   history: ChatMessage[],
   userMessage: string,
   mode: "chat" | "build",
-  knowledgeContext?: string
+  options?: { userName?: string; knowledgeContext?: string }
 ): { system: string; messages: ChatMessage[] } {
   const baseSystem = mode === "build" ? BUILD_MODE_SYSTEM : CHAT_MODE_SYSTEM;
 
-  const system = knowledgeContext
-    ? `${baseSystem}\n\nPROJECT CONTEXT:\n${knowledgeContext}`
-    : baseSystem;
+  let system = baseSystem;
+
+  if (options?.userName) {
+    const firstName = options.userName.split(" ")[0];
+    system += `\n\nUSER: The user's name is ${firstName}. Address them by name naturally — not every message, but when it fits (greetings, encouragement, wrapping up).`;
+  }
+
+  if (options?.knowledgeContext) {
+    system += `\n\nPROJECT CONTEXT:\n${options.knowledgeContext}`;
+  }
 
   const messages: ChatMessage[] = [
     ...history,
