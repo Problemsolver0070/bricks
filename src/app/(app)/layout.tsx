@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { getUserByClerkId } from "@/lib/db/queries";
+import { getOrCreateUserByClerkId } from "@/lib/db/queries";
 import { getConversations } from "@/lib/db/queries";
 import { AppLayoutClient } from "./app-layout-client";
 
@@ -15,7 +15,7 @@ export default async function AppLayout({
   if (!clerkId) redirect("/sign-in");
 
   const clerkUser = await currentUser();
-  const dbUser = await getUserByClerkId(clerkId);
+  const dbUser = await getOrCreateUserByClerkId(clerkId);
 
   // If the webhook hasn't fired yet, the user won't exist in our DB.
   // Redirect to a holding state — the webhook will create them shortly.

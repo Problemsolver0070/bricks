@@ -1,4 +1,5 @@
 import { eq, and, desc, sql } from "drizzle-orm";
+import { clerkClient } from "@clerk/nextjs/server";
 import { db } from "./index";
 import {
   users,
@@ -21,6 +22,37 @@ export async function getUserByClerkId(
 ): Promise<User | undefined> {
   const [user] = await db.select().from(users).where(eq(users.clerkId, clerkId));
   return user;
+}
+
+/**
+ * Get user by Clerk ID, creating the DB record on-demand if the webhook was missed.
+ */
+export async function getOrCreateUserByClerkId(
+  clerkId: string
+): Promise<User | undefined> {
+  const existing = await getUserByClerkId(clerkId);
+  if (existing) return existing;
+
+  try {
+    const client = await clerkClient();
+    const clerkUser = await client.users.getUser(clerkId);
+    const email = clerkUser.emailAddresses?.[0]?.emailAddress;
+    if (!email) return undefined;
+
+    const name =
+      [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ") ||
+      undefined;
+
+    return await createUser({
+      clerkId,
+      email,
+      name,
+      avatarUrl: clerkUser.imageUrl ?? undefined,
+    });
+  } catch (err) {
+    console.error("Failed to auto-provision user from Clerk:", err);
+    return undefined;
+  }
 }
 
 export async function createUser(data: {

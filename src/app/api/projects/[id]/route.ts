@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getUserByClerkId,
+  getOrCreateUserByClerkId,
   getProject,
   updateProjectFiles,
   deleteProject,
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await getUserByClerkId(clerkId);
+    const user = await getOrCreateUserByClerkId(clerkId);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -51,7 +51,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await getUserByClerkId(clerkId);
+    const user = await getOrCreateUserByClerkId(clerkId);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
@@ -95,7 +95,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await getUserByClerkId(clerkId);
+    const user = await getOrCreateUserByClerkId(clerkId);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }

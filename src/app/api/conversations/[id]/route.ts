@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getUserByClerkId,
+  getOrCreateUserByClerkId,
   getConversation,
   updateConversationTitle,
   deleteConversation,
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dbUser = await getUserByClerkId(clerkId);
+  const dbUser = await getOrCreateUserByClerkId(clerkId);
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -48,7 +48,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dbUser = await getUserByClerkId(clerkId);
+  const dbUser = await getOrCreateUserByClerkId(clerkId);
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
@@ -93,7 +93,7 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dbUser = await getUserByClerkId(clerkId);
+  const dbUser = await getOrCreateUserByClerkId(clerkId);
   if (!dbUser) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
