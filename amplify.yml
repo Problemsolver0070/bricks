@@ -10,7 +10,7 @@ frontend:
         # read them (API routes, server components, server actions).
         # Edge middleware vars are inlined via next.config.ts `env` instead.
         - |
-          printenv | grep -E '^(NEXT_PUBLIC_|CLERK_SECRET_KEY|CLERK_WEBHOOK_SIGNING_SECRET|DATABASE_URL|AZURE_AI_API_KEY|AZURE_AI_RESOURCE|PAYPAL_CLIENT_SECRET|PAYPAL_WEBHOOK_ID)' > .env.production || true
+          printenv | grep -E '^(NEXT_PUBLIC_|CLERK_SECRET_KEY|CLERK_WEBHOOK_SIGNING_SECRET|DATABASE_URL|AZURE_AI_API_KEY|AZURE_AI_RESOURCE|AZURE_STORAGE_CONNECTION_STRING|AZURE_STORAGE_CONTAINER|PAYPAL_CLIENT_SECRET|PAYPAL_WEBHOOK_ID)' > .env.production || true
         - npm run build
   artifacts:
     baseDirectory: .next
