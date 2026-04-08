@@ -58,7 +58,10 @@ export async function downloadBlob(blobKey: string): Promise<Buffer> {
 }
 
 export function generateSasUrl(blobKey: string): string {
-  const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING!;
+  const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+  if (!connectionString) {
+    throw new Error("AZURE_STORAGE_CONNECTION_STRING not configured");
+  }
   const accountName = connectionString.match(/AccountName=([^;]+)/)?.[1];
   const accountKey = connectionString.match(/AccountKey=([^;]+)/)?.[1];
 
@@ -83,5 +86,6 @@ export function generateSasUrl(blobKey: string): string {
     credential
   ).toString();
 
-  return `https://${accountName}.blob.core.windows.net/${containerName}/${blobKey}?${sas}`;
+  const encodedKey = blobKey.split("/").map(encodeURIComponent).join("/");
+  return `https://${accountName}.blob.core.windows.net/${containerName}/${encodedKey}?${sas}`;
 }

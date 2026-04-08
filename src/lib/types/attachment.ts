@@ -64,10 +64,12 @@ export function detectCategory(
   return "text";
 }
 
-export function isAllowedMimeType(mimeType: string): boolean {
+export function isAllowedFile(mimeType: string, filename: string): boolean {
   if (IMAGE_TYPES.has(mimeType)) return true;
   if (PDF_TYPES.has(mimeType)) return true;
   if (CODE_MIME_TYPES.has(mimeType)) return true;
   if (mimeType.startsWith("text/")) return true;
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (CODE_EXTENSIONS.has(ext)) return true;
   return false;
 }
