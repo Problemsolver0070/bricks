@@ -57,9 +57,11 @@ RULES:
 
 // ─── Message Builder ──────────────────────────────────────────────────────────
 
+import type { ContentBlock } from "@/lib/ai/attachments";
+
 export interface ChatMessage {
   role: "user" | "assistant";
-  content: string;
+  content: string | ContentBlock[];
 }
 
 export function buildChatMessages(
