@@ -46,6 +46,23 @@ export function ChatMessages() {
           />
         ))}
 
+        {/* Thinking indicator */}
+        {isStreaming && !streamingContent && (
+          <div className="flex gap-3 px-4 py-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Bot className="h-4 w-4" />
+            </div>
+            <div className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <span className="animate-pulse">The Fixer is thinking</span>
+                <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
+                <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
+                <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Currently streaming message */}
         {isStreaming && streamingContent && (
           <MessageBubble
