@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { useBuildStore } from "@/stores/build-store";
 import { CodeEditor } from "./code-editor";
@@ -37,7 +36,6 @@ export function BuildLayout({
   initialFiles,
   initialMessages,
 }: BuildLayoutProps) {
-  const router = useRouter();
   const { getToken } = useAuth();
   const setFiles = useBuildStore((s) => s.setFiles);
   const files = useBuildStore((s) => s.files);
@@ -142,9 +140,9 @@ export function BuildLayout({
             const event = JSON.parse(line.slice(6));
             if (event.type === "conversation_id") {
               conversationIdRef.current = event.id;
-              // Update URL so the session is reloadable
+              // Update URL so the session is reloadable (without remounting)
               if (!_conversationId) {
-                router.replace(`/build/${event.id}`);
+                window.history.replaceState(null, "", `/build/${event.id}`);
               }
             } else if (event.type === "text") {
               fullContent += event.content;
