@@ -1,10 +1,12 @@
 import { create } from "zustand";
+import type { Attachment } from "@/lib/types/attachment";
 
 export interface ChatMessageItem {
   id: string;
   role: "user" | "assistant";
   content: string;
   createdAt: string;
+  attachments?: Attachment[] | null;
 }
 
 interface ChatState {
