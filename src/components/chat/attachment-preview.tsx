@@ -1,6 +1,6 @@
 "use client";
 
-import { X, FileText, FileCode, FileImage, Loader2 } from "lucide-react";
+import { X, FileText, FileCode, Loader2 } from "lucide-react";
 import type { PendingAttachment } from "@/lib/types/attachment";
 
 interface AttachmentPreviewProps {
@@ -32,7 +32,7 @@ export function AttachmentPreview({
           ) : att.category === "code" ? (
             <FileCode className="h-5 w-5 text-blue-400" />
           ) : (
-            <FileImage className="h-5 w-5 text-muted-foreground" />
+            <FileText className="h-5 w-5 text-muted-foreground" />
           )}
 
           <span className="max-w-[120px] truncate text-xs text-foreground">

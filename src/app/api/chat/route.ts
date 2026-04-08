@@ -85,7 +85,8 @@ export async function POST(req: NextRequest) {
       attachments?: Attachment[];
     };
 
-    if (!message || typeof message !== "string" || message.trim().length === 0) {
+    const hasAttachments = incomingAttachments && incomingAttachments.length > 0;
+    if ((!message || typeof message !== "string" || message.trim().length === 0) && !hasAttachments) {
       return new Response(JSON.stringify({ error: "Message is required" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },

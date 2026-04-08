@@ -325,6 +325,28 @@ export function ChatInput({
             value={value}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
+            onPaste={(e) => {
+              const items = Array.from(e.clipboardData.items);
+              const imageFiles = items
+                .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+                .map((item) => item.getAsFile())
+                .filter((f): f is File => f !== null);
+              if (imageFiles.length > 0) {
+                e.preventDefault();
+                const pending: PendingAttachment[] = imageFiles.map((file) => ({
+                  id: crypto.randomUUID(),
+                  file,
+                  filename: file.name || `pasted-image.${file.type.split("/")[1] || "png"}`,
+                  mimeType: file.type,
+                  size: file.size,
+                  category: "image" as const,
+                  status: "uploading" as const,
+                  progress: 0,
+                  previewUrl: URL.createObjectURL(file),
+                }));
+                handleFilesSelected(pending);
+              }
+            }}
             placeholder={
               mode === "build"
                 ? "Describe what you want to build..."

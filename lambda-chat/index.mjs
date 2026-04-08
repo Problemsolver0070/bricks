@@ -98,8 +98,10 @@ async function downloadBlob(blobKey) {
   const blockBlob = container.getBlockBlobClient(blobKey);
   const response = await blockBlob.download(0);
   const chunks = [];
-  for await (const chunk of response.readableStreamBody) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  if (response.readableStreamBody) {
+    for await (const chunk of response.readableStreamBody) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
   }
   return Buffer.concat(chunks);
 }
@@ -487,7 +489,8 @@ export const handler = awslambda.streamifyResponse(
 
       const { message, conversationId: incomingConversationId, mode = "chat", attachments: incomingAttachments } = body;
 
-      if (!message || typeof message !== "string" || message.trim().length === 0) {
+      const hasAttachments = incomingAttachments && incomingAttachments.length > 0;
+      if ((!message || typeof message !== "string" || message.trim().length === 0) && !hasAttachments) {
         writeErrorAndClose(responseStream, 400, "Message is required");
         return;
       }
