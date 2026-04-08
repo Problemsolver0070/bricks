@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest } from "next/server";
-import { client, MODEL } from "@/lib/ai/client";
+import { getClient, MODEL } from "@/lib/ai/client";
 import { buildChatMessages, type ChatMessage } from "@/lib/ai/prompts";
 import {
   sanitizeStreamChunk,
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
         const buffer = { value: "" };
 
         try {
-          const response = client.messages.stream({
+          const response = getClient().messages.stream({
             model: MODEL,
             max_tokens: 8192,
             system: systemPrompt,
