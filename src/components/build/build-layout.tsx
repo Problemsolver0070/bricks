@@ -140,7 +140,15 @@ export function BuildLayout({
                 )
               );
             } else if (event.type === "error") {
-              throw new Error(event.message);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMessage.id
+                    ? { ...m, content: event.message || "Something went wrong." }
+                    : m
+                )
+              );
+              setIsStreaming(false);
+              return;
             }
           } catch {
             // skip malformed SSE lines
