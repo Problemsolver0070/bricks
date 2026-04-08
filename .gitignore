@@ -2,6 +2,7 @@ node_modules/
 .next/
 .env.local
 .env
+.env.production
 *.tsbuildinfo
 next-env.d.ts
 drizzle/meta/
