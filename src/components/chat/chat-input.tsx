@@ -6,6 +6,10 @@ import { useAuth } from "@clerk/nextjs";
 import { Send, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useChatStore } from "@/stores/chat-store";
+import { AttachmentButton, uploadFile } from "./attachment-button";
+import { AttachmentPreview } from "./attachment-preview";
+import type { PendingAttachment, Attachment } from "@/lib/types/attachment";
+import { detectCategory } from "@/lib/types/attachment";
 
 const CHAT_API_URL =
   process.env.NEXT_PUBLIC_CHAT_API_URL || "/api/chat";
@@ -25,6 +29,7 @@ export function ChatInput({
   const { getToken } = useAuth();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
 
   const isStreaming = useChatStore((s) => s.isStreaming);
   const addMessage = useChatStore((s) => s.addMessage);
@@ -33,9 +38,47 @@ export function ChatInput({
   const clearStreamContent = useChatStore((s) => s.clearStreamContent);
   const finalizeStream = useChatStore((s) => s.finalizeStream);
 
+  const handleFilesSelected = useCallback(
+    async (newPending: PendingAttachment[]) => {
+      setPendingAttachments((prev) => [...prev, ...newPending]);
+
+      const token = await getToken();
+      for (const pending of newPending) {
+        try {
+          const attachment = await uploadFile(pending.file, token);
+          setPendingAttachments((prev) =>
+            prev.map((p) =>
+              p.id === pending.id
+                ? { ...p, status: "ready" as const, attachment }
+                : p
+            )
+          );
+        } catch {
+          setPendingAttachments((prev) =>
+            prev.map((p) =>
+              p.id === pending.id ? { ...p, status: "error" as const } : p
+            )
+          );
+        }
+      }
+    },
+    [getToken]
+  );
+
+  const removeAttachment = useCallback((id: string) => {
+    setPendingAttachments((prev) => {
+      const att = prev.find((p) => p.id === id);
+      if (att?.previewUrl) URL.revokeObjectURL(att.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  }, []);
+
   const sendMessage = useCallback(async () => {
     const trimmed = value.trim();
-    if (!trimmed || isStreaming) return;
+    const readyAttachments: Attachment[] = pendingAttachments
+      .filter((p) => p.status === "ready" && p.attachment)
+      .map((p) => p.attachment!);
+    if ((!trimmed && readyAttachments.length === 0) || isStreaming) return;
 
     // Add user message to store immediately
     const tempUserId = `user-${Date.now()}`;
@@ -44,9 +87,11 @@ export function ChatInput({
       role: "user",
       content: trimmed,
       createdAt: new Date().toISOString(),
+      attachments: readyAttachments.length > 0 ? readyAttachments : undefined,
     });
 
     setValue("");
+    setPendingAttachments([]);
     setStreaming(true);
     clearStreamContent();
 
@@ -70,6 +115,7 @@ export function ChatInput({
           message: trimmed,
           conversationId,
           mode,
+          attachments: readyAttachments.length > 0 ? readyAttachments : undefined,
         }),
       });
 
@@ -220,6 +266,7 @@ export function ChatInput({
     onFilesGenerated,
     router,
     getToken,
+    pendingAttachments,
   ]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -237,36 +284,70 @@ export function ChatInput({
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   };
 
+  const uploading = pendingAttachments.some((p) => p.status === "uploading");
+
   return (
-    <div className="border-t border-border/50 bg-card/50 backdrop-blur-sm">
-      <div className="mx-auto flex max-w-3xl items-end gap-2 p-4">
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={handleInput}
-          onKeyDown={handleKeyDown}
-          placeholder={
-            mode === "build"
-              ? "Describe what you want to build..."
-              : "Ask The Fixer anything..."
-          }
-          disabled={isStreaming}
-          rows={1}
-          className="flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
-          style={{ minHeight: "48px", maxHeight: "200px" }}
+    <div
+      className="border-t border-border/50 bg-card/50 backdrop-blur-sm"
+      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.files.length > 0) {
+          const files = Array.from(e.dataTransfer.files);
+          const pending: PendingAttachment[] = files.map((file) => ({
+            id: crypto.randomUUID(),
+            file,
+            filename: file.name,
+            mimeType: file.type || "application/octet-stream",
+            size: file.size,
+            category: detectCategory(file.type, file.name),
+            status: "uploading" as const,
+            progress: 0,
+            previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+          }));
+          handleFilesSelected(pending);
+        }
+      }}
+    >
+      <div className="mx-auto max-w-3xl p-4">
+        <AttachmentPreview
+          attachments={pendingAttachments}
+          onRemove={removeAttachment}
         />
-        <Button
-          onClick={sendMessage}
-          disabled={isStreaming || value.trim().length === 0}
-          size="icon"
-          className="h-12 w-12 shrink-0 rounded-xl"
-        >
-          {isStreaming ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="h-4 w-4" />
-          )}
-        </Button>
+        <div className="flex items-end gap-2">
+          <AttachmentButton
+            onFilesSelected={handleFilesSelected}
+            disabled={isStreaming}
+          />
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              mode === "build"
+                ? "Describe what you want to build..."
+                : "Ask The Fixer anything..."
+            }
+            disabled={isStreaming}
+            rows={1}
+            className="flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
+            style={{ minHeight: "48px", maxHeight: "200px" }}
+          />
+          <Button
+            onClick={sendMessage}
+            disabled={isStreaming || (value.trim().length === 0 && pendingAttachments.length === 0) || uploading}
+            size="icon"
+            className="h-12 w-12 shrink-0 rounded-xl"
+          >
+            {isStreaming ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

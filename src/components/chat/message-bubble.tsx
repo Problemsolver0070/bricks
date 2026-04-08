@@ -4,17 +4,21 @@ import { User, Bot } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { MessageAttachments } from "./message-attachments";
+import type { Attachment } from "@/lib/types/attachment";
 
 interface MessageBubbleProps {
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
+  attachments?: Attachment[] | null;
 }
 
 export function MessageBubble({
   role,
   content,
   isStreaming = false,
+  attachments,
 }: MessageBubbleProps) {
   const isUser = role === "user";
 
@@ -62,7 +66,10 @@ export function MessageBubble({
           )}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap">{content}</p>
+            <>
+              {attachments && <MessageAttachments attachments={attachments} />}
+              <p className="whitespace-pre-wrap">{content}</p>
+            </>
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-lg prose-pre:bg-background/50 prose-code:rounded prose-code:bg-background/50 prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-headings:my-2 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
