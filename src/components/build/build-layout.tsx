@@ -219,6 +219,18 @@ export function BuildLayout({
               </div>
             </div>
           ))}
+          {isStreaming && messages[messages.length - 1]?.role === "user" && (
+            <div className="flex flex-col gap-1 items-start">
+              <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <span className="animate-pulse">The Fixer is thinking</span>
+                  <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
+                  <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
+                  <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+                </span>
+              </div>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
