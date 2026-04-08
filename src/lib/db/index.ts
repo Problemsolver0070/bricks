@@ -18,6 +18,6 @@ export function getDb(): PostgresJsDatabase<typeof schema> {
 // Backwards-compatible export for existing imports
 export const db = new Proxy({} as PostgresJsDatabase<typeof schema>, {
   get(_, prop) {
-    return (getDb() as Record<string | symbol, unknown>)[prop];
+    return (getDb() as unknown as Record<string | symbol, unknown>)[prop];
   },
 });
