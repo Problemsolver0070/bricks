@@ -57,7 +57,8 @@ export async function POST(req: NextRequest) {
       }
 
       const id = crypto.randomUUID();
-      const blobKey = `uploads/${user.id}/${id}/${file.name}`;
+      const safeName = file.name.replace(/[/\\]/g, "_").replace(/\.\./g, "_");
+      const blobKey = `uploads/${user.id}/${id}/${safeName}`;
       const buffer = Buffer.from(await file.arrayBuffer());
       const blobUrl = await uploadBlob(blobKey, buffer, file.type);
       const category = detectCategory(file.type, file.name);

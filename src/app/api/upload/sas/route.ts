@@ -23,8 +23,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Security: verify the blob belongs to this user
-    if (!blobKey.startsWith(`uploads/${user.id}/`)) {
+    // Security: verify the blob belongs to this user and no path traversal
+    if (blobKey.includes("..") || !blobKey.startsWith(`uploads/${user.id}/`)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
