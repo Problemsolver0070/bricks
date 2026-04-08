@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useBuildStore } from "@/stores/build-store";
-import { Loader2, RefreshCw, Hammer } from "lucide-react";
+import { Loader2, RefreshCw, Hammer, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // WebContainer instance type — extracted at runtime via dynamic import
@@ -128,6 +128,17 @@ export function PreviewPanel() {
 
   // Static preview state
   const [staticHtml, setStaticHtml] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // ESC key to exit fullscreen
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreen]);
 
   // Cleanup blob URLs on unmount
   useEffect(() => {
@@ -261,75 +272,127 @@ export function PreviewPanel() {
   const hasFiles = Object.keys(files).length > 0;
   const isLoading = isBooting || (isRunning && !previewUrl && !staticHtml);
 
-  // ─── Empty State ─────────────────────────────────────────────────────────
-  if (!hasFiles && !isLoading) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Hammer className="h-10 w-10 opacity-40" />
-        <p className="text-sm">Ask The Fixer to build something</p>
-      </div>
-    );
-  }
+  // ─── Render ──────────────────────────────────────────────────────────────
+  const renderContent = () => {
+    // Empty State
+    if (!hasFiles && !isLoading) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+          <Hammer className="h-10 w-10 opacity-40" />
+          <p className="text-sm">Ask The Fixer to build something</p>
+        </div>
+      );
+    }
 
-  // ─── Loading State ───────────────────────────────────────────────────────
-  if (isLoading) {
+    // Loading State
+    if (isLoading) {
+      return (
+        <div className="flex h-full flex-col">
+          <div className="flex h-10 items-center justify-between border-b border-border/50 bg-muted/30 px-3">
+            <span className="text-xs text-muted-foreground">Preview</span>
+          </div>
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-sm">
+              {isBooting ? "Installing dependencies..." : "Starting dev server..."}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Static HTML Preview
+    if (staticHtml !== null) {
+      return (
+        <div className="flex h-full flex-col">
+          <div className="flex h-10 items-center justify-between border-b border-border/50 bg-muted/30 px-3">
+            <span className="text-xs text-muted-foreground">Preview — Static</span>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="icon-xs" onClick={handleRefresh}>
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon-xs" onClick={() => setIsFullscreen(true)}>
+                <Maximize2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+          <iframe
+            ref={iframeRef}
+            srcDoc={staticHtml}
+            title="Live Preview"
+            className="flex-1 border-0 bg-white"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+          />
+        </div>
+      );
+    }
+
+    // WebContainer Preview
     return (
       <div className="flex h-full flex-col">
         <div className="flex h-10 items-center justify-between border-b border-border/50 bg-muted/30 px-3">
-          <span className="text-xs text-muted-foreground">Preview</span>
+          <span className="truncate text-xs text-muted-foreground">
+            {previewUrl ?? "Preview"}
+          </span>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="icon-xs" onClick={handleRefresh}>
+              <RefreshCw className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon-xs" onClick={() => setIsFullscreen(true)}>
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <p className="text-sm">
-            {isBooting ? "Installing dependencies..." : "Starting dev server..."}
-          </p>
-        </div>
+        {previewUrl && (
+          <iframe
+            ref={iframeRef}
+            src={previewUrl}
+            title="Live Preview"
+            className="flex-1 border-0 bg-white"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            allow="cross-origin-isolated"
+          />
+        )}
       </div>
     );
-  }
+  };
 
-  // ─── Static HTML Preview ─────────────────────────────────────────────────
-  if (staticHtml !== null) {
-    return (
-      <div className="flex h-full flex-col">
-        <div className="flex h-10 items-center justify-between border-b border-border/50 bg-muted/30 px-3">
-          <span className="text-xs text-muted-foreground">Preview — Static</span>
-          <Button variant="ghost" size="icon-xs" onClick={handleRefresh}>
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-        <iframe
-          ref={iframeRef}
-          srcDoc={staticHtml}
-          title="Live Preview"
-          className="flex-1 border-0 bg-white"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-        />
-      </div>
-    );
-  }
-
-  // ─── WebContainer Preview ────────────────────────────────────────────────
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-10 items-center justify-between border-b border-border/50 bg-muted/30 px-3">
-        <span className="truncate text-xs text-muted-foreground">
-          {previewUrl ?? "Preview"}
-        </span>
-        <Button variant="ghost" size="icon-xs" onClick={handleRefresh}>
-          <RefreshCw className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      {previewUrl && (
-        <iframe
-          ref={iframeRef}
-          src={previewUrl}
-          title="Live Preview"
-          className="flex-1 border-0 bg-white"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-          allow="cross-origin-isolated"
-        />
+    <>
+      {renderContent()}
+
+      {/* ─── Fullscreen Overlay ──────────────────────────────────────────── */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-background">
+          <div className="flex h-10 items-center justify-between border-b border-border/50 px-4">
+            <span className="text-sm font-medium text-foreground">Preview</span>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="icon-xs" onClick={handleRefresh}>
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon-xs" onClick={() => setIsFullscreen(false)}>
+                <Minimize2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+          {staticHtml !== null ? (
+            <iframe
+              srcDoc={staticHtml}
+              title="Live Preview"
+              className="flex-1 border-0 bg-white"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            />
+          ) : previewUrl ? (
+            <iframe
+              src={previewUrl}
+              title="Live Preview"
+              className="flex-1 border-0 bg-white"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+              allow="cross-origin-isolated"
+            />
+          ) : null}
+        </div>
       )}
-    </div>
+    </>
   );
 }
