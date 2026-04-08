@@ -300,36 +300,23 @@ function extractBearerToken(authHeader) {
 
 // ─── Lambda Handler (Response Streaming) ────────────────────────────────────
 
+// ─── CORS ──────────────────────────────────────────────────────────────────
+// CORS is handled by the Lambda Function URL config (AllowOrigins, AllowHeaders,
+// AllowMethods, AllowCredentials). We do NOT set CORS headers manually to avoid
+// duplicate headers which browsers reject.
+
 export const handler = awslambda.streamifyResponse(
   async (event, responseStream, _context) => {
-    // ── CORS Preflight ──────────────────────────────────────────────────
-    if (event.requestContext?.http?.method === "OPTIONS") {
-      responseStream.setContentType("application/json");
-      const metadata = {
-        statusCode: 204,
-        headers: {
-          "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "https://thefixer.in",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Max-Age": "86400",
-        },
-      };
-      responseStream = awslambda.HttpResponseStream.from(responseStream, metadata);
-      responseStream.write("");
-      responseStream.end();
-      return;
-    }
+    const method = event.requestContext?.http?.method;
 
-    // ── Only accept POST ────────────────────────────────────────────────
-    if (event.requestContext?.http?.method !== "POST") {
+    console.log("[Lambda] Request:", method, "from:", event.headers?.origin);
+
+    // ── Only accept POST (OPTIONS is handled by Function URL CORS) ──────
+    if (method !== "POST") {
       responseStream.setContentType("application/json");
       const metadata = {
         statusCode: 405,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "https://thefixer.in",
-        },
+        headers: { "Content-Type": "application/json" },
       };
       responseStream = awslambda.HttpResponseStream.from(responseStream, metadata);
       responseStream.write(JSON.stringify({ error: "Method not allowed" }));
@@ -339,15 +326,10 @@ export const handler = awslambda.streamifyResponse(
 
     // ── Helper to write error and close ─────────────────────────────────
     function writeErrorAndClose(stream, statusCode, error) {
+      console.log("[Lambda] Error response:", statusCode, error);
       const metadata = {
         statusCode,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "https://thefixer.in",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          "Access-Control-Allow-Credentials": "true",
-        },
+        headers: { "Content-Type": "application/json" },
       };
       stream = awslambda.HttpResponseStream.from(stream, metadata);
       stream.write(JSON.stringify({ error }));
@@ -361,23 +343,22 @@ export const handler = awslambda.streamifyResponse(
       const token = extractBearerToken(authHeader);
 
       if (!token) {
+        console.log("[Lambda] No bearer token found");
         writeErrorAndClose(responseStream, 401, "Unauthorized: No token provided");
         return;
       }
 
       let clerkUserId;
       try {
+        console.log("[Lambda] Verifying JWT...");
         const verifiedPayload = await verifyToken(token, {
           secretKey: process.env.CLERK_SECRET_KEY,
-          authorizedParties: [
-            "https://thefixer.in",
-            "https://www.thefixer.in",
-            "http://localhost:3000",
-          ],
+          issuer: "https://clerk.thefixer.in",
         });
         clerkUserId = verifiedPayload.sub;
+        console.log("[Lambda] JWT verified, user:", clerkUserId);
       } catch (authErr) {
-        console.error("Clerk JWT verification failed:", authErr);
+        console.error("[Lambda] Clerk JWT verification failed:", authErr.message || authErr);
         writeErrorAndClose(responseStream, 401, "Unauthorized: Invalid token");
         return;
       }
@@ -388,16 +369,20 @@ export const handler = awslambda.streamifyResponse(
       }
 
       // 2. ── DB user lookup ─────────────────────────────────────────────
+      console.log("[Lambda] Looking up DB user for clerk ID:", clerkUserId);
       const dbUser = await getUserByClerkId(clerkUserId);
       if (!dbUser) {
+        console.log("[Lambda] User not found in DB");
         writeErrorAndClose(responseStream, 404, "User not found");
         return;
       }
+      console.log("[Lambda] DB user found:", dbUser.id, "plan:", dbUser.plan);
 
       // 3. ── Access check (trial / subscription) ───────────────────────
       if (!hasAccess(dbUser)) {
         const subscription = await getSubscription(dbUser.id);
         if (!subscription || subscription.status !== "active") {
+          console.log("[Lambda] Access denied — trial expired, no active subscription");
           writeErrorAndClose(responseStream, 402, "Trial expired. Please upgrade.");
           return;
         }
@@ -457,6 +442,8 @@ export const handler = awslambda.streamifyResponse(
         { userName: dbUser.name ?? undefined }
       );
 
+      console.log("[Lambda] Starting AI stream, mode:", mode, "conversation:", conversationId);
+
       // 9. ── Start SSE streaming response ───────────────────────────────
       const metadata = {
         statusCode: 200,
@@ -465,10 +452,6 @@ export const handler = awslambda.streamifyResponse(
           "Cache-Control": "no-cache, no-transform",
           "Connection": "keep-alive",
           "X-Accel-Buffering": "no",
-          "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "https://thefixer.in",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-          "Access-Control-Allow-Credentials": "true",
         },
       };
       responseStream = awslambda.HttpResponseStream.from(responseStream, metadata);
@@ -482,7 +465,7 @@ export const handler = awslambda.streamifyResponse(
       try {
         const aiResponse = getAIClient().messages.stream({
           model: MODEL,
-          max_tokens: 8192,
+          max_tokens: mode === "build" ? 32000 : 8192,
           system: systemPrompt,
           messages: msgs,
         });
@@ -522,8 +505,9 @@ export const handler = awslambda.streamifyResponse(
         }
 
         responseStream.write(sseEvent({ type: "done" }));
+        console.log("[Lambda] AI stream complete, content length:", fullRawContent.length);
       } catch (aiErr) {
-        console.error("AI stream error:", aiErr);
+        console.error("[Lambda] AI stream error:", aiErr.message || aiErr);
         flushBuffer(buffer);
         responseStream.write(
           sseEvent({
