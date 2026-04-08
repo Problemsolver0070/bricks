@@ -150,16 +150,28 @@ export function ChatInput({
 
                 // Parse <bricks-files> from full content if in build mode
                 if (mode === "build" && onFilesGenerated) {
-                  const filesMatch = fullContent.match(
-                    /<bricks-files>\s*([\s\S]*?)\s*<\/bricks-files>/
-                  );
-                  if (filesMatch) {
-                    try {
-                      const files = JSON.parse(filesMatch[1]);
-                      onFilesGenerated(files);
-                    } catch {
-                      // JSON parse failed — skip
+                  try {
+                    let bricksJson: string | undefined;
+                    const complete = fullContent.match(
+                      /<bricks-files>\s*([\s\S]*?)\s*<\/bricks-files>/
+                    );
+                    if (complete) {
+                      bricksJson = complete[1];
+                    } else {
+                      // Handle truncated response
+                      const incomplete = fullContent.match(/<bricks-files>\s*([\s\S]*)/);
+                      if (incomplete) {
+                        bricksJson = incomplete[1];
+                        const lastObj = bricksJson.lastIndexOf("}");
+                        if (lastObj > 0) bricksJson = bricksJson.slice(0, lastObj + 1) + "]";
+                      }
                     }
+                    if (bricksJson) {
+                      const files = JSON.parse(bricksJson);
+                      onFilesGenerated(files);
+                    }
+                  } catch {
+                    // JSON parse failed — skip
                   }
                 }
                 return;

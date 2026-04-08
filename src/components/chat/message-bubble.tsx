@@ -18,6 +18,15 @@ export function MessageBubble({
 }: MessageBubbleProps) {
   const isUser = role === "user";
 
+  // Strip <bricks-files> blocks from displayed content
+  const displayContent =
+    !isUser
+      ? content
+          .replace(/<bricks-files>[\s\S]*?<\/bricks-files>/g, "")
+          .replace(/<bricks-files>[\s\S]*/g, "")
+          .trim()
+      : content;
+
   return (
     <div
       className={cn(
@@ -57,7 +66,7 @@ export function MessageBubble({
           ) : (
             <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-lg prose-pre:bg-background/50 prose-code:rounded prose-code:bg-background/50 prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-headings:my-2 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {content}
+                {displayContent}
               </ReactMarkdown>
               {isStreaming && (
                 <span className="ml-0.5 inline-block h-4 w-1.5 animate-pulse rounded-sm bg-primary" />

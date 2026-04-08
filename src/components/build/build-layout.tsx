@@ -199,26 +199,39 @@ export function BuildLayout({
               </p>
             </div>
           )}
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={cn(
-                "flex flex-col gap-1",
-                msg.role === "user" ? "items-end" : "items-start"
-              )}
-            >
+          {messages.map((msg) => {
+            // Strip <bricks-files> blocks from displayed content
+            const displayContent =
+              msg.role === "assistant"
+                ? msg.content
+                    .replace(/<bricks-files>[\s\S]*?<\/bricks-files>/g, "")
+                    .replace(/<bricks-files>[\s\S]*/g, "") // handle incomplete blocks
+                    .trim()
+                : msg.content;
+
+            if (msg.role === "assistant" && !displayContent) return null;
+
+            return (
               <div
+                key={msg.id}
                 className={cn(
-                  "max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-foreground"
+                  "flex flex-col gap-1",
+                  msg.role === "user" ? "items-end" : "items-start"
                 )}
               >
-                {msg.content}
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap",
+                    msg.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-foreground"
+                  )}
+                >
+                  {displayContent}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {isStreaming && messages[messages.length - 1]?.role === "user" && (
             <div className="flex flex-col gap-1 items-start">
               <div className="max-w-[85%] rounded-lg px-3 py-2 text-sm bg-muted text-muted-foreground">
@@ -317,9 +330,26 @@ function extractFilesFromResponse(
 
   // Try <bricks-files> format first (the AI's primary output format)
   try {
-    const bricksMatch = content.match(/<bricks-files>\s*([\s\S]*?)\s*<\/bricks-files>/);
-    if (bricksMatch) {
-      const parsed = JSON.parse(bricksMatch[1]);
+    // Match complete block first
+    let bricksJson: string | undefined;
+    const completeMatch = content.match(/<bricks-files>\s*([\s\S]*?)\s*<\/bricks-files>/);
+    if (completeMatch) {
+      bricksJson = completeMatch[1];
+    } else {
+      // Handle truncated responses — extract whatever JSON array we have
+      const incompleteMatch = content.match(/<bricks-files>\s*([\s\S]*)/);
+      if (incompleteMatch) {
+        bricksJson = incompleteMatch[1];
+        // Try to repair truncated JSON: find the last complete object in the array
+        const lastCompleteObj = bricksJson.lastIndexOf("}");
+        if (lastCompleteObj > 0) {
+          bricksJson = bricksJson.slice(0, lastCompleteObj + 1) + "]";
+        }
+      }
+    }
+
+    if (bricksJson) {
+      const parsed = JSON.parse(bricksJson);
       if (Array.isArray(parsed)) {
         for (const f of parsed) {
           if (f.path && f.content) {
