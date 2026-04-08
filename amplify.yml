@@ -6,16 +6,11 @@ frontend:
         - npm ci --cache .npm --prefer-offline
     build:
       commands:
-        # Write all NEXT_PUBLIC_ vars to .env.production (client-side + SSR)
-        - env | grep -e NEXT_PUBLIC_ >> .env.production || true
-        # Write server-side secrets to .env.production (required for SSR runtime)
-        - env | grep -e CLERK_SECRET_KEY >> .env.production || true
-        - env | grep -e CLERK_WEBHOOK_SIGNING_SECRET >> .env.production || true
-        - env | grep -e DATABASE_URL >> .env.production || true
-        - env | grep -e AZURE_AI_API_KEY >> .env.production || true
-        - env | grep -e AZURE_AI_RESOURCE >> .env.production || true
-        - env | grep -e PAYPAL_CLIENT_SECRET >> .env.production || true
-        - env | grep -e PAYPAL_WEBHOOK_ID >> .env.production || true
+        # Write env vars to .env.production so the Node.js SSR runtime can
+        # read them (API routes, server components, server actions).
+        # Edge middleware vars are inlined via next.config.ts `env` instead.
+        - |
+          printenv | grep -E '^(NEXT_PUBLIC_|CLERK_SECRET_KEY|CLERK_WEBHOOK_SIGNING_SECRET|DATABASE_URL|AZURE_AI_API_KEY|AZURE_AI_RESOURCE|PAYPAL_CLIENT_SECRET|PAYPAL_WEBHOOK_ID)' > .env.production || true
         - npm run build
   artifacts:
     baseDirectory: .next
