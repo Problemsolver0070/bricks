@@ -5,13 +5,9 @@ import { useBuildStore } from "@/stores/build-store";
 import { Loader2, RefreshCw, Hammer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-// ─── WebContainer Types ──────────────────────────────────────────────────────
-// We import dynamically to avoid SSR issues, but define the shape for typing.
-type WebContainer = Awaited<
-  ReturnType<typeof import("@webcontainer/api").then>
->["WebContainer"] extends { boot(): Promise<infer T> }
-  ? T
-  : never;
+// WebContainer instance type — extracted at runtime via dynamic import
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type WebContainer = any;
 
 interface FileNode {
   file: { contents: string };
