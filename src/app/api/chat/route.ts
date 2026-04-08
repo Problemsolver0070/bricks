@@ -9,6 +9,8 @@ import {
   sanitizeResponse,
   flushBuffer,
 } from "@/lib/ai/sanitizer";
+import { buildContentBlocks, summarizeAttachments } from "@/lib/ai/attachments";
+import type { Attachment } from "@/lib/types/attachment";
 import {
   getUserByClerkId,
   getSubscription,
@@ -75,10 +77,12 @@ export async function POST(req: NextRequest) {
       message,
       conversationId: incomingConversationId,
       mode = "chat",
+      attachments: incomingAttachments,
     } = body as {
       message: string;
       conversationId?: string;
       mode?: "chat" | "build";
+      attachments?: Attachment[];
     };
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -107,7 +111,12 @@ export async function POST(req: NextRequest) {
     }
 
     // 6. Save user message
-    await createMessage(conversationId, "user", message.trim());
+    await createMessage(
+      conversationId,
+      "user",
+      message.trim(),
+      incomingAttachments?.length ? incomingAttachments : null
+    );
 
     // 7. Load last 50 messages as history
     const allMessages = await getMessages(conversationId, dbUser.id);
@@ -115,7 +124,7 @@ export async function POST(req: NextRequest) {
     // History = all recent messages except the last one (the user message we just saved)
     const history: ChatMessage[] = recentMessages.slice(0, -1).map((m) => ({
       role: m.role as "user" | "assistant",
-      content: m.content,
+      content: summarizeAttachments(m.content, m.attachments as Attachment[] | null),
     }));
 
     // 8. Build prompt
@@ -125,6 +134,17 @@ export async function POST(req: NextRequest) {
       mode,
       { userName: dbUser.name ?? undefined }
     );
+
+    // 8b. Build content blocks for current message's attachments
+    if (incomingAttachments?.length) {
+      const lastMsg = msgs[msgs.length - 1];
+      if (lastMsg.role === "user") {
+        lastMsg.content = await buildContentBlocks(
+          message.trim(),
+          incomingAttachments
+        );
+      }
+    }
 
     // 9. Stream response via SSE
     const encoder = new TextEncoder();
